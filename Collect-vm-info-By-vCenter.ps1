@@ -24,7 +24,7 @@ $password = Read-Host 'Enter The vCenter Password' -AsSecureString
 $vccredential = New-Object System.Management.Automation.PSCredential ($username, $password)
 
 #################################
-# 		REPORTS INFO            # 
+# 		REPORTS INFO    # 
 #################################  
 $Export_VM_INFO = "_VM_INFO_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
 $All_VM_Export = "All_VM_Export_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
