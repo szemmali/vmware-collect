@@ -13,6 +13,7 @@
 ##          Note:  Connect With Active Directory Credential 
 ##          BUGS:  Set-ExecutionPolicy -ExecutionPolicy Bypass
 ##=================================================================================
+$StartTime = Get-Date
 #################################
 #    VMware vCenter server name # 
 #################################  
@@ -211,3 +212,12 @@ Invoke-Item    $All_VM_Export
 ############################### 
 Write-Host "Open Collect SnapShots Info Report" $Snap_INFO
 Invoke-Item    $Snap_INFO
+
+$EndTime = Get-Date
+$duration = [math]::Round((New-TimeSpan -Start $StartTime -End $EndTime).TotalMinutes,2)
+Write-Host "================================"
+Write-Host "vSphere Collect Complete!"
+Write-Host "StartTime: $StartTime"
+Write-Host "  EndTime: $EndTime"
+Write-Host "  Duration: $duration minutes"
+Write-Host "================================"
