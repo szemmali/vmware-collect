@@ -8,7 +8,7 @@
 ##    Repository:  https://github.com/szemmali/vmware-collect
 ##          Task:  Collect Storage By Partition for each vCenter
 ##          FILE:  vCollect-Storage-ByPartition-ByvCenter.ps1
-##   Description:  Deploy VMs from template and Configure the Guest OS
+##   Description:  Collect Storage By Partition for each vCenter
 ##   Requirement:  --
 ##          Note:  Connect With USERNAME/PASSWORD Credential 
 ##          BUGS:  Set-ExecutionPolicy -ExecutionPolicy Bypass
