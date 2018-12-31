@@ -17,7 +17,7 @@
 #  vCollect Targeting Variables # 
 ################################# 
 $StartTime = Get-Date
-$report= "reports\"
+$report= "..\reports\"
 $dateF = Get-Date -UFormat "%d-%b-%Y_%H-%M-%S" 
 ##############################
 # Check the required modules #
@@ -66,15 +66,12 @@ function check-ReportFolder ($dir) {
     }    
 }
 
-check-ReportFolder "Storage"
-check-ReportFolder "Hardware"
-check-ReportFolder "Network"
-check-ReportFolder "Performance"
+check-ReportFolder "vHardware"
 
 #################################
 #   vSphere Targeting Variables # 
 #################################  
-$vCenterList = Get-Content "vCenter.txt"
+$vCenterList = Get-Content "..\vCenter.txt"
 $username = Read-Host 'Enter The vCenter Username'
 $password = Read-Host 'Enter The vCenter Password' -AsSecureString    
 $vccredential = New-Object System.Management.Automation.PSCredential ($username, $password)
@@ -91,7 +88,7 @@ Write-Host "There are $TotalVcCount vCenter"  -Foregroundcolor "Cyan"
 #################################
 #           LOG INFO            # 
 ################################# 
-$PathH = ".\reports\Hardware\$dateF"
+$PathH = "..\reports\Hardware\$dateF"
 $DCReport = @()
 # XLSX Reports
 $ReportXlsVC = "_fileName_VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
