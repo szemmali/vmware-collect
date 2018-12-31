@@ -1,14 +1,14 @@
 ##=================================================================================
-##       Project:  vCollect Hardware Info By ESXi for each vCenter
+##       Project:  vCollect Hardware Info  By ESXi for each vCenter
 ##        AUTHOR:  SADDAM ZEMMALI
 ##         eMail:  saddam.zemmali@gmail.com
 ##       CREATED:  14.07.2018 02:03:01
 ##      REVISION:  --
-##       Version:  0.0.3  Â¯\_(ãƒ„)_/Â¯
+##       Version:  1.0  ¯\_(ツ)_/¯
 ##    Repository:  https://github.com/szemmali/vmware-collect
-##          Task:  vCollect Hardware Info  By ESXi for each vCenter
-##          FILE:  vCollect-VMHostInfoHwSummary-By_vCenter.ps1
-##   Description:  vCollect Hardware Info By ESXi for each vCenter
+##          Task:   vCollect Hardware Info  By ESXi for each vCenter
+##          FILE:  vCollect-Storage-ByPartition-ByvCenter.ps1
+##   Description:  vCollect Hardware Info  By ESXi for each vCenter
 ##   Requirement:  --
 ##          Note:  Connect With USERNAME/PASSWORD Credential 
 ##          BUGS:  Set-ExecutionPolicy -ExecutionPolicy Bypass
@@ -17,7 +17,7 @@
 #  vCollect Targeting Variables # 
 ################################# 
 $StartTime = Get-Date
-$report= "..\reports\"
+$report= "reports\"
 $dateF = Get-Date -UFormat "%d-%b-%Y_%H-%M-%S" 
 ##############################
 # Check the required modules #
@@ -48,8 +48,6 @@ function check-Module ($m) {
 
 check-Module "CredentialManager"
 check-Module "VMware.PowerCLI"
-check-module "PSExcel"
-check-module "ImportExcel" 
 
 #####################################
 #  vCollect Targeting Report Folder # 
@@ -69,11 +67,14 @@ function check-ReportFolder ($dir) {
 }
 
 check-ReportFolder "Storage"
+check-ReportFolder "Hardware"
+check-ReportFolder "Network"
+check-ReportFolder "Performance"
 
 #################################
 #   vSphere Targeting Variables # 
 #################################  
-$vCenterList = Get-Content "..\vCenter.txt"
+$vCenterList = Get-Content "vCenter.txt"
 $username = Read-Host 'Enter The vCenter Username'
 $password = Read-Host 'Enter The vCenter Password' -AsSecureString    
 $vccredential = New-Object System.Management.Automation.PSCredential ($username, $password)
@@ -81,32 +82,25 @@ $vccredential = New-Object System.Management.Automation.PSCredential ($username,
 #################################
 #   vCheck Targeting Variables  # 
 ################################# 
-# Total number of vCenter
+$ReportInfo="Hardware Info Report"
 $countvc = 0
+$CountHosts = 0
 $TotalVcCount = $vCenterList.count
 Write-Host "There are $TotalVcCount vCenter"  -Foregroundcolor "Cyan"
 
 #################################
 #           LOG INFO            # 
-#################################  
-$PathS = "..\reports\storage\$dateF"
-
+################################# 
+$PathH = ".\reports\Hardware\$dateF"
+$DCReport = @()
 # XLSX Reports
 $ReportXlsVC = "_fileName_VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
-$ReportXls = "vCollect_All_Storage_Report_ByPartition_ByVC_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
+$ReportXls = "vCollect_All_ESXi_Hardware_Report_ByVC_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
 
 # CVS Reports
-$ReportCSV = "_vCollect_Storage_Info_By-VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
-$ReportCsvAll = "vCollect_All_Storage_Info_ByPartition_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
-#$vC_VM_Storage_Export = "_vCollect_Storage_Info_ByPartition_ByVC" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
+$ReportCSV = "_vCollect_Hardware_Info_ByESXi_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
+$ReportCsvAll = "vCollect_All_ESXi_Hardware_Report_ByVC_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
 
-# Variables
-$DCStorageReportVM = @() 
-$CountVMs  = @()
-$CountHosts  = @()
-$CountDS  = 0
-$CountCluster  = 0
-$countvc =0
 #################################
 #   Start vCollect By vCenter   # 
 ################################# 
@@ -116,66 +110,92 @@ foreach ($vCenter in $vCenterList){
   Write-Host "Connecting to $vCenter..." -Foregroundcolor "Yellow" -NoNewLine
   $connection = Connect-VIServer -Server $vCenter -Cred $vccredential -ErrorAction SilentlyContinue -WarningAction 0 | Out-Null
   If($? -Eq $True){
-      Write-Host "Connected" -Foregroundcolor "Green" 
-      Write-Progress -Id 0 -Activity 'Checking vCenter' -Status "Processing $($countvc) of $($TotalVcCount):  $($vCenter)" -CurrentOperation $countvc -PercentComplete (($countvc/$TotalVcCount) * 100)
+    Write-Host "Connected" -Foregroundcolor "Green" 
+    Write-Progress -Id 0 -Activity 'Checking vCenter' -Status "Processing $($countvc) of $($TotalVcCount):  $($vCenter)" -CurrentOperation $countvc -PercentComplete (($countvc/$TotalVcCount) * 100)
 
       #################################
       #   vCheck Targeting Variables  # 
       ################################# 
-      $StorageReportVMs = @() 
       # Total number of hosts
       $TotalVMHosts = Get-VMHost
       $TotalVMHostsCount = $TotalVMHosts.count
-      $CountHosts = $CountHosts + $TotalVMHosts
+      $CountHosts = $CountHosts + $TotalVMHostsCount
       Write-Host "There are $TotalVMHostsCount Hosts in $DefaultVIServer" -Foregroundcolor "Cyan"
 
-      # Total number of guests
-      $TotalVMs = Get-VM
-      $TotalVMsCount = $TotalVMs.count
-      $CountVMs=$CountVMs + $TotalVMsCount
-      Write-Host "There are $TotalVMsCount Virtual Machines in $DefaultVIServer" -Foregroundcolor "Cyan"
-        
-      ####################################
-      # Start Collect Storage Info by VM #
-      #################################### 
-      $countvms = 0
-      $StorageReportVMs=ForEach ($VM in Get-VM ){ 
-          $countvms++
-
-          Write-Progress -Id 1 -ParentId 0 -Activity 'Checking All VMs in vCenter' -Status "Processing $($countvms) of $($TotalVMsCount) VMs" -CurrentOperation $countvms -PercentComplete (($countvms/$TotalVMsCount) * 100)
-
-              ($VM.Extensiondata.Guest.Disk | Select @{N="Data Center";E={$vm | Get-Datacenter | Select-Object -ExpandProperty name }}, 
-              @{N="vCenter Server";E={$vm.ExtensionData.Client.ServiceUrl.Split('/')[2].trimend(":443")}}, 
-              @{N="Cluster";E={$vm | Get-Cluster | Select-Object -ExpandProperty name}}, 
-              @{N="Host";E={$VM.VMHost}}, 
-              @{N="Name";E={$VM.Name}},DiskPath, 
-              @{N="Capacity(GB)";E={[math]::Round($_.Capacity/ 1GB)}}, 
-              @{N="Free Space(GB)";E={[math]::Round($_.FreeSpace / 1GB)}}, 
-              @{N="Free Space %";E={[math]::Round(((100* ($_.FreeSpace))/ ($_.Capacity)),0)}})
-
-          Write-Progress -Id 2 -ParentId 1 -Activity 'Gathering Storage Information'   -Status "Processing VM: $($VM)" -CurrentOperation $VM.DisplayName -PercentComplete (100)
-      }  
-     ####################################
-     # END Collect Storage Info by VMs  #
-     #################################### 
-     Write-Host "Create CSV File with VM Information from $vCenter" 
-     $StorageReportVMs | Export-Csv $PathS\$vCenter$ReportCSV -NoTypeInformation -UseCulture 
-
-     Write-Host "Create XLSX File with VM Information from $vCenter" 
-     $StorageReportVMs | Export-Excel -Path $PathS\$ReportXls -WorkSheetname "$vCenter" -Table -Autofit -Force 
-
-     #Invoke-Item    $PathS\$vCenter$ReportCSV
-     $DCStorageReportVM +=$StorageReportVMs
-
-   }
+      ##############################
+      # Gathering ESXi information #
+      ##############################
+      Write-Host "Gathering ESXi Hardware Information"
+      $Report = @() 
+      $vmHosts = get-vmhost | select Name,ConnectionState,PowerState,NumCpu,MemoryUsageGB,MemoryTotalGB,Version,Build,MaxEVCMode,@{N="BiosVersion";E={$_.ExtensionData.Hardware.BiosInfo.BiosVersion}}, @{N="BiosReleaseDate";E={$_.ExtensionData.Hardware.BiosInfo.ReleaseDate}},@{N="Cluster";E={ $_.Parent}},@{N="vCenter";E={ ($_.uid).split("@")[1].split(":")[0]}} 
+      foreach ($vmHost in $vmHosts) {       
+          
+            $ConnectionState = $vmHost.ConnectionState
+            if ($ConnectionState -eq 'NotResponding'){
+                $ESXiInfo = New-Object PSObject  
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "vCenter"                 -Value $vmHost.vcenter 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Cluster"                 -Value $vmHost.Cluster 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Name"                    -Value $vmHost.name
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Version"                 -Value $vmHost.Version   
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Hardware Vendor"         -Value "Unknown" 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Hardware Model"          -Value "Unknown" 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Serial Number"           -Value "Unknown"
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "BIOS Version"            -Value $vmHost.BiosVersion 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "BIOS Release Date"       -Value $vmHost.BiosReleaseDate
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Build"                   -Value $vmHost.Build
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Max EVC Mode"            -Value $vmHost.MaxEVCMode 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Num CPU"                 -Value $vmHost.NumCpu 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "CPU Model"               -Value "Unknown" 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "CPU Core Count Total"    -Value "Unknown"
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Memory Usage (GB)"       -Value "Unknown"            
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Memory Total (GB)"       -Value $vmHost.MemoryTotalGB 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Connection State"        -Value $vmHost.ConnectionState
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Power State"             -Value $vmHost.PowerState 
+            }
+            else {
+                $VMHardwareInfo = get-vmhosthardware -vmhost $vmHost.name |select Manufacturer, Model, SerialNumber,CpuModel, CpuCoreCountTotal
+                $ESXiInfo = New-Object PSObject  
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "vCenter"                 -Value $vmHost.vcenter 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Cluster"                 -Value $vmHost.Cluster 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Name"                    -Value $vmHost.name
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Version"                 -Value $vmHost.Version   
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Hardware Vendor"         -Value $VMHardwareInfo.Manufacturer 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Hardware Model"          -Value $VMHardwareInfo.Model 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Serial Number"           -Value $VMHardwareInfo.SerialNumber
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "BIOS Version"            -Value $vmHost.BiosVersion 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "BIOS Release Date"       -Value $vmHost.BiosReleaseDate
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Build"                   -Value $vmHost.Build
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Max EVC Mode"            -Value $vmHost.MaxEVCMode 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Num CPU"                 -Value $vmHost.NumCpu 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "CPU Model"               -Value $VMHardwareInfo.CpuModel 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "CPU Core Count Total"    -Value $VMHardwareInfo.CpuCoreCountTotal
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Memory Usage (GB)"       -Value $vmHost.MemoryUsageGB            
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Memory Total (GB)"       -Value $vmHost.MemoryTotalGB 
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Connection State"        -Value $vmHost.ConnectionState
+                $ESXiInfo | add-member -MemberType NoteProperty -Name "Power State"             -Value $vmHost.PowerState 
+            }
+            $report += $ESXiInfo
+      } # END foreach 
+    ########################################
+    #   END Collect HW Info by vCenter     #
+    ######################################## 
+    Write-Host "Export $ReportInfo from vcenter: $vCenter" -Foregroundcolor "Green"  
+    $Report | Export-Csv $PathH\$vCenter$ReportCSV -NoTypeInformation -UseCulture 
+    $Report | Export-Excel -Path $PathH\$ReportXls -WorkSheetname "$vCenter" 
+    #Invoke-Item    $PathS\$vCenter$ReportCSV
+    $DCReport +=$Report
+    
+  } # END If 
 
   Else{
-        Write-Host "Error in Connecting to $vCenter; Try Again with correct user name & password!" -Foregroundcolor "Red" 
-    }    
-
-  Write-Host "Export All Storage Information By VM All vCenter" 
-  $DCStorageReportVM | Export-Csv $PathS\$ReportCsvAll -NoTypeInformation -UseCulture 
-  $DCStorageReportVM | Export-Excel -Path $PathS\$ReportXls -WorkSheetname "All vCenter" -Table -Autofit -Force 
+    Write-Host "Error in Connecting to $vCenter; Try Again with correct user name & password!" -Foregroundcolor "Red" 
+  }
+  ########################################
+  # END Collect HW Info from All vCenter #
+  ######################################## 
+  Write-Host "Export All $ReportInfo from All vCenter" -Foregroundcolor "Green" 
+  $DCReport | Export-Csv $PathH\$ReportCsvAll -NoTypeInformation -UseCulture 
+  $DCReport | Export-Excel -Path $PathH\$ReportXls -WorkSheetname "All vCenter" 
 
   ##############################
   # Disconnect session from VC #
@@ -184,19 +204,19 @@ foreach ($vCenter in $vCenterList){
   $disconnection =Disconnect-VIServer -Server $vCenter  -Force -confirm:$false  -ErrorAction SilentlyContinue -WarningAction 0 | Out-Null
 
   If($? -Eq $True){
-      Write-Host "Disconnected" -Foregroundcolor "Green" 
-      Write-Host "#####################################" -Foregroundcolor "Blue" 
-   }
+    Write-Host "Disconnected" -Foregroundcolor "Green" 
+    Write-Host "#####################################" -Foregroundcolor "Blue" 
+  }
 
   Else{
-      Write-Host "Error in Disconnecting to $vCenter" -Foregroundcolor "Red" 
-   }
+    Write-Host "Error in Disconnecting to $vCenter" -Foregroundcolor "Red" 
+  }
 }
 
 #################################
 #     End vCollect By vCenter   # 
 ################################# 
-Invoke-Item $PathS\$ReportXls
+#Invoke-Item $PathH \$ReportXls
 
 ##############################
 #       End of Script        #
@@ -204,9 +224,8 @@ Invoke-Item $PathS\$ReportXls
 $EndTime = Get-Date
 $duration = [math]::Round((New-TimeSpan -Start $StartTime -End $EndTime).TotalMinutes,2)
 Write-Host "================================"
-Write-Host "vCollect Storage Info By VM By vCenter Completed!"
+Write-Host "vCollect Harware Info By ESXi By vCenter Completed!"
 Write-Host "There are $CountHosts Hosts in $TotalVcCount vCenter" -Foregroundcolor "Cyan"
-Write-Host "There are $CountVMs   Virtual Machines   in $TotalVcCount vCenter" -Foregroundcolor "Cyan"
 Write-Host "StartTime: $StartTime"
 Write-Host "  EndTime: $EndTime"
 Write-Host "  Duration: $duration minutes"
