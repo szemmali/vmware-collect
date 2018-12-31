@@ -1,6 +1,6 @@
 # :+1: vCollect Hardware Information By ESXi for each vCenter
 ## Overview: 
-Many of the customer projects I work on involve collecting an inventory of basic information about the hashtag#VMware hashtag#ESXi in the environment, such as CPU/memory specs, OS versions, Power State, and so on.
+Many of the customer projects I work on involve collecting an inventory of basic information about the #VMware #ESXi in the environment, such as CPU/memory specs, OS versions, Power State, and so on.
 
 :shipit:	VMware Code: https://code.vmware.com/samples/5175
 
