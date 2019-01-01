@@ -1,6 +1,6 @@
 # :+1: vCollect Hardware Information By ESXi for each vCenter
 ## Overview: 
-Many of the customer projects I work on involve collecting an inventory of basic information about the #VMware #ESXi in the environment, such as Host, Name, HBAName, Source, Target, LUN, Status, Path, PathSelectionPolicy, and so on.
+Many of the customer projects I work on involve collecting an inventory of basic information about the #VMware #ESXi in the environment, such as CPU/memory specs, OS versions, Power State, and so on.
 
 :shipit:	VMware Code: https://code.vmware.com/samples/5175
 
@@ -13,16 +13,25 @@ To make this inventory process less time consuming I began using #PowerShell scr
 
 This PowerShell script, #vCollect-VMHostInfoHwSummary.ps1, will collect Storage PATH Information from Hosts By #vCenter that includes:
 ```
-* vCnetre
-* Cluster
-* Host 				
-* HBAName 			
-* Path Selection Policy 
-* Status 				
-* Source 				
-* Target 				
-* LUN 				
-* Path 				
+*	vCenter
+*	Cluster
+*	Name
+*	Version
+*	Hardware Vendor
+*	Hardware Model
+*	Serial Number
+*	BIOS Version
+*	BIOS Release Date
+*	Build
+*	Max EVC Mode
+*	Num CPU
+*	CPU Model
+* CPU Core Count Total
+*	Memory Usage (GB)
+*	Memory Total (GB)
+*	Connection State
+*	Power State
+			
 ```
 
 ## Output:
