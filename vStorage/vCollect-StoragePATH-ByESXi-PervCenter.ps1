@@ -17,7 +17,7 @@
 #  vCollect Targeting Variables # 
 ################################# 
 $StartTime = Get-Date
-$report= "..\reports\"
+$dir= "reports\"
 $dateF = Get-Date -UFormat "%d-%b-%Y_%H-%M-%S" 
 ##############################
 # Check the required modules #
@@ -82,7 +82,7 @@ $ReportInfo="Storage PATH per ESXi for each vCenter Info Report"
 #################################
 #           LOG INFO            # 
 ################################# 
-$PathH = "..\reports\Hardware\$dateF"
+$PathH = "reports\Hardware\$dateF"
 $DCReport = @()
 # XLSX Reports
 $ReportXlsVC = "_fileName_VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
