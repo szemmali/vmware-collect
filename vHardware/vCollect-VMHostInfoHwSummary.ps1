@@ -2,9 +2,9 @@
 ##       Project:  vCollect Hardware Info  By ESXi for each vCenter
 ##        AUTHOR:  SADDAM ZEMMALI
 ##         eMail:  saddam.zemmali@gmail.com
-##       CREATED:  14.07.2018 02:03:01
+##       CREATED:  06.01.2019 02:03:01
 ##      REVISION:  --
-##       Version:  1.0  ¯\_(ツ)_/¯
+##       Version:  1.2  ¯\_(ツ)_/¯
 ##    Repository:  https://github.com/szemmali/vmware-collect
 ##          Task:   vCollect Hardware Info  By ESXi for each vCenter
 ##          FILE:  vCollect-Storage-ByPartition-ByvCenter.ps1
@@ -17,7 +17,8 @@
 #  vCollect Targeting Variables # 
 ################################# 
 $StartTime = Get-Date
-$report= "..\reports\"
+if (-not (Test-Path '.\vCollect-Reports')) { New-Item -Path '.\vCollect-Reports' -ItemType Directory -Force | Out-Null }
+$report= "..\vCollect-Reports"
 $dateF = Get-Date -UFormat "%d-%b-%Y_%H-%M-%S" 
 ##############################
 # Check the required modules #
@@ -52,21 +53,21 @@ check-Module "VMware.PowerCLI"
 #####################################
 #  vCollect Targeting Report Folder # 
 #####################################
-function check-ReportFolder ($dir) {
-    if(!(Test-Path -Path $report$dir )){
-        New-Item -ItemType directory -Path $report$dir
+function vcollect-check-folder ($dir) {
+    if(!(Test-Path -Path $report\$dir )){
+        New-Item -ItemType directory -Path $report\$dir
         Write-Host "New Storage folder created" -f Magenta
-        New-Item -Path $report$dir -Name $dateF -ItemType "directory"
+        New-Item -Path $report\$dir -Name $dateF -ItemType "directory"
         Write-Host "New Work folder created"   -f Magenta
     }
     else{
       Write-Host "Storage Folder already exists" -f Green
-      New-Item -Path $report$dir -Name $dateF -ItemType "directory"
+      New-Item -Path $report\$dir -Name $dateF -ItemType "directory"
       Write-Host "New Work folder created"  -f Magenta
     }    
 }
 
-check-ReportFolder "vHardware"
+vcollect-check-folder "vCollect-Hardware"
 
 #################################
 #   vSphere Targeting Variables # 
@@ -88,7 +89,7 @@ Write-Host "There are $TotalVcCount vCenter"  -Foregroundcolor "Cyan"
 #################################
 #           LOG INFO            # 
 ################################# 
-$PathH = "..\reports\Hardware\$dateF"
+$PathH = "$report\vCollect-Hardware\$dateF"
 $DCReport = @()
 # XLSX Reports
 $ReportXlsVC = "_fileName_VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
@@ -108,8 +109,7 @@ foreach ($vCenter in $vCenterList){
   $connection = Connect-VIServer -Server $vCenter -Cred $vccredential -ErrorAction SilentlyContinue -WarningAction 0 | Out-Null
   If($? -Eq $True){
     Write-Host "Connected" -Foregroundcolor "Green" 
-    Write-Progress -Id 0 -Activity 'Checking vCenter' -Status "Processing $($countvc) of $($TotalVcCount):  $($vCenter)" -CurrentOperation $countvc -PercentComplete (($countvc/$TotalVcCount) * 100)
-
+    Write-Progress -Activity "vCollecting vCenter" -Status ("vCenter: {0}" -f $vCenter) -PercentComplete ($countvc/$TotalVcCount*100) -Id 0
       #################################
       #   vCheck Targeting Variables  # 
       ################################# 
@@ -125,8 +125,11 @@ foreach ($vCenter in $vCenterList){
       Write-Host "Gathering ESXi Hardware Information"
       $Report = @() 
       $vmHosts = get-vmhost | select Name,ConnectionState,PowerState,NumCpu,MemoryUsageGB,MemoryTotalGB,Version,Build,MaxEVCMode,@{N="BiosVersion";E={$_.ExtensionData.Hardware.BiosInfo.BiosVersion}}, @{N="BiosReleaseDate";E={$_.ExtensionData.Hardware.BiosInfo.ReleaseDate}},@{N="Cluster";E={ $_.Parent}},@{N="vCenter";E={ ($_.uid).split("@")[1].split(":")[0]}} 
-      foreach ($vmHost in $vmHosts) {       
-          
+      $i=0
+      foreach ($vmHost in $vmHosts) {          
+            
+            Write-Progress -Activity "vCollecting hosts" -Status ("Host: {0}" -f $vmHost.Name) -PercentComplete ($i/$TotalVMHostsCount*100) -Id 1  -ParentId 0
+      
             $ConnectionState = $vmHost.ConnectionState
             if ($ConnectionState -eq 'NotResponding'){
                 $ESXiInfo = New-Object PSObject  
