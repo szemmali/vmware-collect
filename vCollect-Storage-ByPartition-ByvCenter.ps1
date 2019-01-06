@@ -17,12 +17,13 @@
 #  vCollect Targeting Variables # 
 ################################# 
 $StartTime = Get-Date
-$report= "reports\"
+if (-not (Test-Path '.\vCollect-Reports')) { New-Item -Path '.\vCollect-Reports' -ItemType Directory -Force | Out-Null }
+$report= ".\vCollect-Reports"
 $dateF = Get-Date -UFormat "%d-%b-%Y_%H-%M-%S" 
 ##############################
 # Check the required modules #
 ############################## 
-function check-Module ($m) {
+function vcollect-check-module ($m) {
     # If module is imported say that and do nothing
     if (Get-Module | Where-Object {$_.Name -eq $m}) {
         write-host "Module $m "  -f Magenta -NoNewLine  
@@ -46,27 +47,27 @@ function check-Module ($m) {
     }
 }
 
-check-Module "CredentialManager"
-check-Module "VMware.PowerCLI"
+vcollect-check-module "CredentialManager"
+vcollect-check-module "VMware.PowerCLI"
 
 #####################################
 #  vCollect Targeting Report Folder # 
 #####################################
-function check-ReportFolder ($dir) {
-    if(!(Test-Path -Path $report$dir )){
-        New-Item -ItemType directory -Path $report$dir
+function vcollect-check-folder ($dir) {
+    if(!(Test-Path -Path $report\$dir )){
+        New-Item -ItemType directory -Path $report\$dir
         Write-Host "New Storage folder created" -f Magenta
-        New-Item -Path $report$dir -Name $dateF -ItemType "directory"
+        New-Item -Path $report\$dir -Name $dateF -ItemType "directory"
         Write-Host "New Work folder created"   -f Magenta
     }
     else{
       Write-Host "Storage Folder already exists" -f Green
-      New-Item -Path $report$dir -Name $dateF -ItemType "directory"
+      New-Item -Path $report\$dir -Name $dateF -ItemType "directory"
       Write-Host "New Work folder created"  -f Magenta
     }    
 }
 
-check-ReportFolder "Storage"
+vcollect-check-folder "vCollect-Storage"
 
 #################################
 #   vSphere Targeting Variables # 
@@ -79,89 +80,131 @@ $vccredential = New-Object System.Management.Automation.PSCredential ($username,
 #################################
 #   vCheck Targeting Variables  # 
 ################################# 
-# Total number of vCenter
+$ReportInfo="Storage Parition Info Report"
 $countvc = 0
+$CountHosts = 0
 $TotalVcCount = $vCenterList.count
 Write-Host "There are $TotalVcCount vCenter"  -Foregroundcolor "Cyan"
 
 #################################
 #           LOG INFO            # 
-#################################  
-$PathS = "reports\storage\$dateF"
-$vC_VM_Storage_Export = "_vCollect_Storage_Info_By-VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
-$All_VM_Storage_Export = "vCollect_All_Storage_Info_By-VM_By-vC_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
-$Snap_INFO = "All_Snap_Export_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
-$DCStorageReportVM = @() 
-$CountVMs  = @()
-$CountHosts  = @()
-$CountDS  = 0
-$CountCluster  = 0
-$countvc =0
+################################# 
+$PathH = "$report\vCollect-Storage\$dateF"
+$DCReport = @()
+$DCLowReport = @()
+# XLSX Reports
+$ReportXlsVC = "_fileName_VM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
+$ReportXls = "vCollect-StoragePartition-AllVMs-AllvCenter_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") +".xlsx"
+
+# CVS Reports vCollect-StoragePartition-AllVMs-AllvCenter
+$ReportCSV = "_vCollect_StoragePartition_Info_ByVM_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
+$ReportCsvAll = "vCollect-StoragePartition-AllVMs-AllvCenter_" + (Get-Date -UFormat "%d-%b-%Y-%H-%M") + ".csv"
+
 #################################
 #   Start vCollect By vCenter   # 
 ################################# 
-Disconnect-VIServer  -Force -confirm:$false  -ErrorAction SilentlyContinue -WarningAction 0 | Out-Null
+#Disconnect-VIServer -Server * -Force -confirm:$false  
+disconnect-viserver -confirm:$false
 foreach ($vCenter in $vCenterList){
   $countvc++
   Write-Host "Connecting to $vCenter..." -Foregroundcolor "Yellow" -NoNewLine
   $connection = Connect-VIServer -Server $vCenter -Cred $vccredential -ErrorAction SilentlyContinue -WarningAction 0 | Out-Null
   If($? -Eq $True){
-      Write-Host "Connected" -Foregroundcolor "Green" 
-      Write-Progress -Id 0 -Activity 'Checking vCenter' -Status "Processing $($countvc) of $($TotalVcCount):  $($vCenter)" -CurrentOperation $countvc -PercentComplete (($countvc/$TotalVcCount) * 100)
-
+    Write-Host "Connected" -Foregroundcolor "Green" 
+    Write-Progress -Activity "vCollecting vCenter" -Status ("vCenter: {0}" -f $vCenter) -PercentComplete ($countvc/$TotalVcCount*100) -Id 0
       #################################
       #   vCheck Targeting Variables  # 
       ################################# 
-      $StorageReportVMs = @() 
       # Total number of hosts
       $TotalVMHosts = Get-VMHost
       $TotalVMHostsCount = $TotalVMHosts.count
-      $CountHosts = $CountHosts + $TotalVMHosts
+      $CountHosts = $CountHosts + $TotalVMHostsCount
       Write-Host "There are $TotalVMHostsCount Hosts in $DefaultVIServer" -Foregroundcolor "Cyan"
-
-      # Total number of guests
+      
+      # Total number of VMs
       $TotalVMs = Get-VM
       $TotalVMsCount = $TotalVMs.count
       $CountVMs=$CountVMs + $TotalVMsCount
       Write-Host "There are $TotalVMsCount Virtual Machines in $DefaultVIServer" -Foregroundcolor "Cyan"
+
+      ##############################
+      # Gathering ESXi information #
+      ##############################
+      Write-Host "Gathering Disk Partition Storage Information"
+      $Report = @() 
+      $DisksLowReport = @() 
+
+      $i=0
+      ForEach ($VM in $TotalVMs){ 
+        $i++
+        Write-Progress -Activity "vCollecting VMs" -Status ("VM: {0}" -f $VM.Name) -PercentComplete ($i/$TotalVMsCount*100) -Id 1  -ParentId 0
+        #Datacenter info  
+        $datacenter = $vm | Get-Datacenter | Select-Object -ExpandProperty name 
+        #vCenter Server  
+        $vCenter = $vm.ExtensionData.Client.ServiceUrl.Split('/')[2].trimend(":443") 
+        #Cluster info  
+        $cluster = $vm | Get-Cluster | Select-Object -ExpandProperty name 
         
-      ####################################
-      # Start Collect Storage Info by VM #
-      #################################### 
-      $countvms = 0
-      $StorageReportVMs=ForEach ($VM in Get-VM ){ 
-          $countvms++
+        # Total Drives
+        $TotalDrives = $VM.ExtensionData.Guest.Disk
+        $TotalDrivesCount = $TotalDrives.count
+        $j=0
+        ForEach ($Drive in $VM.ExtensionData.Guest.Disk){
+            $j++
+            Write-Progress -Activity "vCollecting Drives" -Status ("Drive: {0}" -f $Drive.DiskPath) -PercentComplete ($j/$TotalDrivesCount*100) -Id 2  -ParentId 1
+            $Path = $Drive.DiskPath
+            $Capacity   =   [math]::Round($Drive.Capacity/ 1GB)
+            $Freespace  =   [math]::Round($Drive.FreeSpace / 1GB)
+            $PercentFree=   [math]::Round(((100* ($Drive.FreeSpace))/ ($Drive.Capacity)),0)
 
-          Write-Progress -Id 1 -ParentId 0 -Activity 'Checking All VMs in vCenter' -Status "Processing $($countvms) of $($TotalVMsCount) VMs" -CurrentOperation $countvms -PercentComplete (($countvms/$TotalVMsCount) * 100)
-
-              ($VM.Extensiondata.Guest.Disk | Select @{N="Data Center";E={$vm | Get-Datacenter | Select-Object -ExpandProperty name }}, 
-              @{N="vCenter Server";E={$vm.ExtensionData.Client.ServiceUrl.Split('/')[2].trimend(":443")}}, 
-              @{N="Cluster";E={$vm | Get-Cluster | Select-Object -ExpandProperty name}}, 
-              @{N="Host";E={$VM.VMHost}}, 
-              @{N="Name";E={$VM.Name}},DiskPath, 
-              @{N="Capacity(GB)";E={[math]::Round($_.Capacity/ 1GB)}}, 
-              @{N="Free Space(GB)";E={[math]::Round($_.FreeSpace / 1GB)}}, 
-              @{N="Free Space %";E={[math]::Round(((100* ($_.FreeSpace))/ ($_.Capacity)),0)}})
-
-          Write-Progress -Id 2 -ParentId 1 -Activity 'Gathering Storage Information'   -Status "Processing VM: $($VM)" -CurrentOperation $VM.DisplayName -PercentComplete (100)
-      }  
-     ####################################
-     # END Collect Storage Info by VMs  #
-     #################################### 
-     Write-Host "Create CSV File with VM Information from $vCenter" 
-     $StorageReportVMs | Export-Csv $PathS\$vCenter$vC_VM_Storage_Export -NoTypeInformation -UseCulture  
-     Invoke-Item    $PathS$vCenter$vC_VM_Storage_Export
-     $DCStorageReportVM +=$StorageReportVMs
-
-   }
+            $Vmresult = New-Object PSObject   
+            $Vmresult | add-member -MemberType NoteProperty -Name "datacenter"      -Value $datacenter  
+            $Vmresult | add-member -MemberType NoteProperty -Name "vCenter Server"  -Value $vCenter  
+            $Vmresult | add-member -MemberType NoteProperty -Name "Cluster"         -Value $cluster 
+            $Vmresult | add-member -MemberType NoteProperty -Name "Host"            -Value $VM.VMHost 
+            $Vmresult | add-member -MemberType NoteProperty -Name "VM Name"         -Value $VM.Name
+            $Vmresult | add-member -MemberType NoteProperty -Name "Disk PATH"       -Value $Path
+            $Vmresult | add-member -MemberType NoteProperty -Name "Capacity(GB)"    -Value $Capacity
+            $Vmresult | add-member -MemberType NoteProperty -Name "Free Space(GB)"  -Value $Freespace
+            $Vmresult | add-member -MemberType NoteProperty -Name "Free Space %"    -Value $PercentFree
+            $report += $Vmresult                         
+            
+            if ($PercentFree -lt 10) {     
+                $DisksLowresult = New-Object PSObject   
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "datacenter"      -Value $datacenter  
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "vCenter Server"  -Value $vCenter  
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "Cluster"         -Value $cluster 
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "Host"            -Value $VM.VMHost 
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "VM Name"         -Value $VM.Name
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "Disk PATH"       -Value $Path
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "Capacity(GB)"    -Value $Capacity
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "Free Space(GB)"  -Value $Freespace
+                $DisksLowresult | add-member -MemberType NoteProperty -Name "Free Space %"    -Value $PercentFree
+                $DisksLowReport += $DisksLowresult
+            }
+         }
+      }            
+    ########################################
+    #   END Collect HW Info by vCenter     #
+    ######################################## 
+    Write-Host "Export $ReportInfo from vcenter: $vCenter" -Foregroundcolor "Green"  
+    $Report | Export-Csv $PathH\$vCenter$ReportCSV -NoTypeInformation -UseCulture 
+    $Report | Export-Excel -Path $PathH\$ReportXls -WorkSheetname "$vCenter" 
+    #Invoke-Item    $PathS\$vCenter$ReportCSV
+    $DCReport +=$Report
+    $DCLowReport += $DisksLowReport
+  } # END If 
 
   Else{
-        Write-Host "Error in Connecting to $vCenter; Try Again with correct user name & password!" -Foregroundcolor "Red" 
-    }    
-
-  Write-Host "Export All Storage Information By VM All vCenter" 
-  $DCStorageReportVM | Export-Csv $PathS\$All_VM_Storage_Export -NoTypeInformation -UseCulture 
-
+    Write-Host "Error in Connecting to $vCenter; Try Again with correct user name & password!" -Foregroundcolor "Red" 
+  }
+  ########################################
+  # END Collect HW Info from All vCenter #
+  ######################################## 
+  Write-Host "Export All $ReportInfo from All vCenter" -Foregroundcolor "Green" 
+  $DCReport | Export-Csv $PathH\$ReportCsvAll -NoTypeInformation -UseCulture 
+  $DCReport | Export-Excel -Path $PathH\$ReportXls -WorkSheetname "All vCenter" 
+  $DCLowReport | Export-Excel -Path $PathH\$ReportXls -WorkSheetname "Disks-Low-Space"
   ##############################
   # Disconnect session from VC #
   ##############################  
@@ -169,17 +212,19 @@ foreach ($vCenter in $vCenterList){
   $disconnection =Disconnect-VIServer -Server $vCenter  -Force -confirm:$false  -ErrorAction SilentlyContinue -WarningAction 0 | Out-Null
 
   If($? -Eq $True){
-      Write-Host "Disconnected" -Foregroundcolor "Green" 
-      Write-Host "#####################################" -Foregroundcolor "Blue" 
-   }
+    Write-Host "Disconnected" -Foregroundcolor "Green" 
+    Write-Host "#####################################" -Foregroundcolor "Blue" 
+  }
 
   Else{
-      Write-Host "Error in Disconnecting to $vCenter" -Foregroundcolor "Red" 
-   }
+    Write-Host "Error in Disconnecting to $vCenter" -Foregroundcolor "Red" 
+  }
 }
+
 #################################
 #     End vCollect By vCenter   # 
 ################################# 
+#Invoke-Item $PathH \$ReportXls
 
 ##############################
 #       End of Script        #
@@ -187,9 +232,8 @@ foreach ($vCenter in $vCenterList){
 $EndTime = Get-Date
 $duration = [math]::Round((New-TimeSpan -Start $StartTime -End $EndTime).TotalMinutes,2)
 Write-Host "================================"
-Write-Host "vCollect Storage Info By VM By vCenter Completed!"
-Write-Host "There are $SumHosts Hosts in $TotalVcCount vCenter" -Foregroundcolor "Cyan"
-Write-Host "There are $SumVMs   Virtual Machines   in $TotalVcCount vCenter" -Foregroundcolor "Cyan"
+Write-Host "vCollect Harware Info By ESXi By vCenter Completed!"
+Write-Host "There are $CountHosts Hosts in $TotalVcCount vCenter" -Foregroundcolor "Cyan"
 Write-Host "StartTime: $StartTime"
 Write-Host "  EndTime: $EndTime"
 Write-Host "  Duration: $duration minutes"
