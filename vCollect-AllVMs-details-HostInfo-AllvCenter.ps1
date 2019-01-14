@@ -215,8 +215,8 @@ foreach ($vCenter in $vCenterList){
             $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult Build"             -Value  $VM.VMHost.ExtensionData.Summary.Config.Product.Build
             $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult OS"                -Value  $VM.VMHost.ExtensionData.Summary.Config.Product.OsType
             $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult License Key"       -Value  $VM.VMHost.LicenseKey
-            $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult License Name"      -Value  $VM.VMHost.ExtensionData.Summary.Config.Product.LicenseVmresultName
-            $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult License Version"   -Value  $VM.VMHost.ExtensionData.Summary.Config.Product.LicenseVmresultVersion
+            $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult License Name"      -Value  $VM.VMHost.ExtensionData.Summary.Config.Product.LicenseProductName
+            $Vmresult | add-member -MemberType NoteProperty -Name "Host Vmresult License Version"   -Value  $VM.VMHost.ExtensionData.Summary.Config.Product.LicenseProductVersion
             $Vmresult | add-member -MemberType NoteProperty -Name "Host vMotion IP Address"         -Value  $VM.VMHost.ExtensionData.Config.vMotion.IPConfig.IpAddress
             $Vmresult | add-member -MemberType NoteProperty -Name "Host vMotion Subnet Mask"        -Value  $VM.VMHost.ExtensionData.Config.vMotion.IPConfig.SubnetMask 
             $report += $Vmresult 
